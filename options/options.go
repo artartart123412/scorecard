@@ -113,8 +113,11 @@ var (
 	errRepoOptionMustBeSet      = errors.New(
 		"exactly one of `repo`, `npm`, `pypi`, `rubygems` or `local` must be set",
 	)
-	errSARIFNotSupported = errors.New("SARIF format is not supported yet")
-	errValidate          = errors.New("some options could not be validated")
+	errSARIFNotSupported            = errors.New("SARIF format is not supported yet")
+	errValidate                     = errors.New("some options could not be validated")
+	errBranchProtectionNotSupported = errors.New("Branch-Protection check is not supported for local repositories")
+	errSignedReleasesNotSupported   = errors.New("Signed-Releases check is not supported for local repositories")
+	errCIIBestBadgeNotSupported     = errors.New("CII-Best-Practices check is not supported for local repositories")
 )
 
 // Validate validates scorecard configuration options.
@@ -187,6 +190,10 @@ func (o *Options) Validate() error {
 		)
 	}
 
+	if err := o.isCheckValidForLocalRepo(); err != nil {
+		errs = append(errs, err)
+	}
+
 	if len(errs) != 0 {
 		return fmt.Errorf(
 			"%w: %+v",
@@ -239,4 +246,22 @@ func validateFormat(format string) bool {
 	default:
 		return false
 	}
+}
+
+// isCheckValidForLocalRepo returns an error if the check is not valid for local repository.
+func (o *Options) isCheckValidForLocalRepo() error {
+	// This is a remote repository
+	if o.Local == "" {
+		return nil
+	}
+	notValidChecks := make(map[string]error)
+	notValidChecks["Branch-Protection"] = errBranchProtectionNotSupported
+	notValidChecks["Signed-Releases"] = errSignedReleasesNotSupported
+	notValidChecks["CII-Best-Practices"] = errCIIBestBadgeNotSupported
+	for _, check := range o.ChecksToRun {
+		if err, ok := notValidChecks[check]; ok {
+			return err
+		}
+	}
+	return nil
 }
